@@ -68,6 +68,10 @@ type Arguments struct {
 	ExcludeSchemas                []string            `alloy:"exclude_schemas,attr,optional"`
 	AllowUpdatePerfSchemaSettings bool                `alloy:"allow_update_performance_schema_settings,attr,optional"`
 
+	// Temporary feature flags for structured logging experiments. These will be removed before Alloy 1.14.0.
+	EnableIndexedLabels      bool `alloy:"enable_indexed_labels,attr,optional"`
+	EnableStructuredMetadata bool `alloy:"enable_structured_metadata,attr,optional"`
+
 	CloudProvider           *CloudProvider               `alloy:"cloud_provider,block,optional"`
 	SetupConsumersArguments SetupConsumersArguments      `alloy:"setup_consumers,block,optional"`
 	SetupActorsArguments    SetupActorsArguments         `alloy:"setup_actors,block,optional"`
@@ -160,6 +164,8 @@ func (a *PrometheusExporterArguments) Validate() error {
 var DefaultArguments = Arguments{
 	ExcludeSchemas:                []string{},
 	AllowUpdatePerfSchemaSettings: false,
+	EnableIndexedLabels:           false,
+	EnableStructuredMetadata:      false,
 
 	QueryDetailsArguments: QueryDetailsArguments{
 		CollectInterval: 1 * time.Minute,
@@ -541,12 +547,14 @@ func (c *Component) startCollectors(serverID string, engineVersion string, parse
 
 	if collectors[collector.QueryDetailsCollector] {
 		qtCollector, err := collector.NewQueryDetails(collector.QueryDetailsArguments{
-			DB:              c.dbConnection,
-			CollectInterval: c.args.QueryDetailsArguments.CollectInterval,
-			StatementsLimit: c.args.QueryDetailsArguments.StatementsLimit,
-			ExcludeSchemas:  c.args.ExcludeSchemas,
-			EntryHandler:    entryHandler,
-			Logger:          c.opts.Logger,
+			DB:                       c.dbConnection,
+			CollectInterval:          c.args.QueryDetailsArguments.CollectInterval,
+			StatementsLimit:          c.args.QueryDetailsArguments.StatementsLimit,
+			ExcludeSchemas:           c.args.ExcludeSchemas,
+			EntryHandler:             entryHandler,
+			Logger:                   c.opts.Logger,
+			EnableIndexedLabels:      c.args.EnableIndexedLabels,
+			EnableStructuredMetadata: c.args.EnableStructuredMetadata,
 		})
 		if err != nil {
 			logStartError(collector.QueryDetailsCollector, "create", err)
@@ -599,6 +607,8 @@ func (c *Component) startCollectors(serverID string, engineVersion string, parse
 			SetupConsumersCheckInterval: c.args.QuerySamplesArguments.SetupConsumersCheckInterval,
 			SampleMinDuration:           c.args.QuerySamplesArguments.SampleMinDuration,
 			WaitEventMinDuration:        c.args.QuerySamplesArguments.WaitEventMinDuration,
+			EnableIndexedLabels:         c.args.EnableIndexedLabels,
+			EnableStructuredMetadata:    c.args.EnableStructuredMetadata,
 		})
 		if err != nil {
 			logStartError(collector.QuerySamplesCollector, "create", err)
