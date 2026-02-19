@@ -43,6 +43,7 @@ func BuildV2LokiEntry(
 	enableIndexedLabels, enableStructuredMetadata bool,
 	timestamp int64,
 ) loki.Entry {
+
 	logLine := baseLogLine
 	labels := model.LabelSet{"op": model.LabelValue(op)}
 	var smLabels push.LabelsAdapter

@@ -436,11 +436,11 @@ func (c *QuerySamples) fetchQuerySamples(ctx context.Context) error {
 					logging.LevelInfo,
 					OP_QUERY_SAMPLE_V2,
 					baseLogMessage,
-				[]database_observability.Field{{Name: "schema", Value: row.Schema.String}},
-				[]database_observability.Field{{Name: "digest", Value: row.Digest.String}},
-				c.enableIndexedLabels,
-				c.enableStructuredMetadata,
-				int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
+					[]database_observability.Field{{Name: "schema", Value: row.Schema.String}},
+					[]database_observability.Field{{Name: "digest", Value: row.Digest.String}},
+					c.enableIndexedLabels,
+					c.enableStructuredMetadata,
+					int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
 				)
 			}
 		}
@@ -489,11 +489,11 @@ func (c *QuerySamples) fetchQuerySamples(ctx context.Context) error {
 					logging.LevelInfo,
 					OP_WAIT_EVENT_V2,
 					waitBaseLogMessage,
-				[]database_observability.Field{{Name: "schema", Value: row.Schema.String}},
-				[]database_observability.Field{
-					{Name: "digest", Value: row.Digest.String},
-					{Name: "wait_event_name", Value: row.WaitEventName.String},
-				},
+					[]database_observability.Field{{Name: "schema", Value: row.Schema.String}},
+					[]database_observability.Field{
+						{Name: "digest", Value: row.Digest.String},
+						{Name: "wait_event_name", Value: row.WaitEventName.String},
+					},
 					c.enableIndexedLabels,
 					c.enableStructuredMetadata,
 					int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
