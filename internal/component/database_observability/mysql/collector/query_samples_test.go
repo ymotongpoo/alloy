@@ -2934,7 +2934,7 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			mock.ExpectQuery(selectNowAndUptime).WithoutArgs().WillReturnRows(
 				sqlmock.NewRows([]string{"now", "uptime"}).AddRow(5, 1),
 			)
-			mock.ExpectQuery(fmt.Sprintf(selectQuerySamples, cpuTimeField+maxControlledMemoryField+maxTotalMemoryField, exclusionClause, digestTextNotNullClause, endOfTimeline)).
+			mock.ExpectQuery(fmt.Sprintf(selectQuerySamples, cpuTimeField+maxControlledMemoryField+maxTotalMemoryField, "", exclusionClause, digestTextNotNullClause, "", endOfTimeline)).
 				WithArgs(1e12, 1e12).RowsWillBeClosed().
 				WillReturnRows(sqlmock.NewRows([]string{
 					"statements.CURRENT_SCHEMA",

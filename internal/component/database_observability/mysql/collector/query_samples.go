@@ -462,6 +462,9 @@ func (c *QuerySamples) fetchQuerySamples(ctx context.Context) error {
 				row.WaitObjectType.String,
 				waitTime,
 			)
+			if c.disableQueryRedaction && row.SQLText.Valid {
+				waitLogMessage += fmt.Sprintf(` sql_text="%s"`, row.SQLText.String)
+			}
 
 			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithTimestamp(
 				logging.LevelInfo,

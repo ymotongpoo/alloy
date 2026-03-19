@@ -1055,6 +1055,7 @@ func TestQueryDetails_LogFormatFlags(t *testing.T) {
 			collector, err := NewQueryDetails(QueryDetailsArguments{
 				DB:                       db,
 				CollectInterval:          time.Second,
+				StatementsLimit:          100,
 				EntryHandler:             lokiClient,
 				Logger:                   log.NewLogfmtLogger(os.Stderr),
 				EnableIndexedLabels:      tc.enableIndexedLabels,
@@ -1063,7 +1064,7 @@ func TestQueryDetails_LogFormatFlags(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, collector)
 
-			mock.ExpectQuery(fmt.Sprintf(selectQueriesFromActivity, exclusionClause, "")).WithoutArgs().RowsWillBeClosed().
+			mock.ExpectQuery(fmt.Sprintf(selectQueriesFromActivity, exclusionClause, "", 100)).WithoutArgs().RowsWillBeClosed().
 				WillReturnRows(sqlmock.NewRows([]string{
 					"queryid",
 					"query",
