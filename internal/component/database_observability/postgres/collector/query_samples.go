@@ -540,7 +540,10 @@ func (c *QuerySamples) emitAndDeleteSample(key SampleKey) {
 				logging.LevelInfo,
 				OP_WAIT_EVENT_V3,
 				c.buildWaitEventV3Labels(state, we),
-				push.LabelsAdapter{{Name: "wait_event_type", Value: classifyPostgresWaitEventType(we.WaitEventType)}},
+				push.LabelsAdapter{
+					{Name: "wait_event_type", Value: classifyPostgresWaitEventType(we.WaitEventType)},
+					{Name: "queryid", Value: fmt.Sprintf("%d", state.LastRow.QueryID.Int64)},
+				},
 				we.LastTimestamp.UnixNano(),
 			)
 

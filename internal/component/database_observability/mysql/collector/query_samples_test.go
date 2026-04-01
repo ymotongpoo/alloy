@@ -3054,6 +3054,14 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			assert.Equal(t, tc.waitV2Labels, entries[3].Labels)
 			assert.Equal(t, tc.waitV2Line, entries[3].Line)
 			assert.ElementsMatch(t, tc.waitV2SM, entries[3].StructuredMetadata)
+
+			if tc.enableStructuredMetadata {
+				assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V3}, entries[4].Labels)
+				assert.ElementsMatch(t, push.LabelsAdapter{
+					{Name: "wait_event_type", Value: "IO Wait"},
+					{Name: "queryid", Value: "some_digest"},
+				}, entries[4].StructuredMetadata)
+			}
 		})
 	}
 }
