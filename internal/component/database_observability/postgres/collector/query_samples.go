@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/alloy/internal/component/database_observability"
 	"github.com/grafana/alloy/internal/runtime/logging"
 	"github.com/grafana/alloy/internal/runtime/logging/level"
+	"github.com/grafana/loki/pkg/push"
 )
 
 const (
@@ -25,6 +26,10 @@ const (
 	OP_QUERY_SAMPLE_V2    = "query_sample_v2"
 	OP_WAIT_EVENT         = "wait_event"
 	OP_WAIT_EVENT_V2      = "wait_event_v2"
+	OP_WAIT_EVENT_V3      = "wait_event_v3"
+	OP_WAIT_EVENT_V4      = "wait_event_v4"
+	OP_WAIT_EVENT_V5      = "wait_event_v5"
+	OP_WAIT_EVENT_V6      = "wait_event_v6"
 )
 
 const (
@@ -529,6 +534,42 @@ func (c *QuerySamples) emitAndDeleteSample(key SampleKey) {
 				we.LastTimestamp.UnixNano(),
 			)
 		}
+
+		if c.enableStructuredMetadata {
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
+				logging.LevelInfo,
+				OP_WAIT_EVENT_V3,
+				c.buildWaitEventV3Labels(state, we),
+				push.LabelsAdapter{{Name: "wait_event_type", Value: classifyPostgresWaitEventType(we.WaitEventType)}},
+				we.LastTimestamp.UnixNano(),
+			)
+
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
+				logging.LevelInfo,
+				OP_WAIT_EVENT_V5,
+				c.buildWaitEventV5Labels(state, we),
+				push.LabelsAdapter{
+					{Name: "wait_event_type", Value: classifyPostgresWaitEventType(we.WaitEventType)},
+					{Name: "queryid", Value: fmt.Sprintf("%d", state.LastRow.QueryID.Int64)},
+					{Name: "dbname", Value: state.LastRow.DatabaseName.String},
+				},
+				we.LastTimestamp.UnixNano(),
+			)
+		}
+
+		c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithTimestamp(
+			logging.LevelInfo,
+			OP_WAIT_EVENT_V4,
+			c.buildWaitEventV4Labels(state, we),
+			we.LastTimestamp.UnixNano(),
+		)
+
+		c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithTimestamp(
+			logging.LevelInfo,
+			OP_WAIT_EVENT_V6,
+			c.buildWaitEventV6Labels(state, we),
+			we.LastTimestamp.UnixNano(),
+		)
 	}
 
 	delete(c.samples, key)
@@ -668,6 +709,118 @@ func (c *QuerySamples) buildWaitEventLabelsV2(state *SampleState, we WaitEventOc
 		we.WaitEvent,
 		waitEventFullName,
 		we.BlockedByPIDs,
+	)
+}
+
+func classifyPostgresWaitEventType(rawType string) string {
+	switch rawType {
+	case "IO":
+		return "IO Wait"
+	case "Lock", "LWLock", "Activity", "Extension",
+		"InjectionPoint", "IPC", "Timeout", "BufferPin":
+		return "Lock Wait"
+	case "Client":
+		return "Network Wait"
+	default:
+		return "Other Wait"
+	}
+}
+
+func (c *QuerySamples) buildWaitEventV3Labels(state *SampleState, we WaitEventOccurrence) string {
+	waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)
+	leaderPID := ""
+	if state.LastRow.LeaderPID.Valid {
+		leaderPID = fmt.Sprintf(`%d`, state.LastRow.LeaderPID.Int64)
+	}
+	return fmt.Sprintf(
+		`datname="%s" pid="%d" leader_pid="%s" user="%s" backend_type="%s" state="%s" xid="%d" xmin="%d" wait_time="%s" wait_event="%s" wait_event_name="%s" blocked_by_pids="%v" queryid="%d"`,
+		state.LastRow.DatabaseName.String,
+		state.LastRow.PID,
+		leaderPID,
+		state.LastRow.Username.String,
+		state.LastRow.BackendType.String,
+		we.LastState,
+		state.LastRow.BackendXID.Int64,
+		state.LastRow.BackendXmin.Int64,
+		we.LastWaitTime,
+		we.WaitEvent,
+		waitEventFullName,
+		we.BlockedByPIDs,
+		state.LastRow.QueryID.Int64,
+	)
+}
+
+func (c *QuerySamples) buildWaitEventV4Labels(state *SampleState, we WaitEventOccurrence) string {
+	waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)
+	leaderPID := ""
+	if state.LastRow.LeaderPID.Valid {
+		leaderPID = fmt.Sprintf(`%d`, state.LastRow.LeaderPID.Int64)
+	}
+	return fmt.Sprintf(
+		`datname="%s" pid="%d" leader_pid="%s" user="%s" backend_type="%s" state="%s" xid="%d" xmin="%d" wait_time="%s" wait_event_type="%s" wait_event="%s" wait_event_name="%s" blocked_by_pids="%v" queryid="%d"`,
+		state.LastRow.DatabaseName.String,
+		state.LastRow.PID,
+		leaderPID,
+		state.LastRow.Username.String,
+		state.LastRow.BackendType.String,
+		we.LastState,
+		state.LastRow.BackendXID.Int64,
+		state.LastRow.BackendXmin.Int64,
+		we.LastWaitTime,
+		classifyPostgresWaitEventType(we.WaitEventType),
+		we.WaitEvent,
+		waitEventFullName,
+		we.BlockedByPIDs,
+		state.LastRow.QueryID.Int64,
+	)
+}
+
+func (c *QuerySamples) buildWaitEventV5Labels(state *SampleState, we WaitEventOccurrence) string {
+	waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)
+	leaderPID := ""
+	if state.LastRow.LeaderPID.Valid {
+		leaderPID = fmt.Sprintf(`%d`, state.LastRow.LeaderPID.Int64)
+	}
+	return fmt.Sprintf(
+		`datname="%s" pid="%d" leader_pid="%s" user="%s" backend_type="%s" state="%s" xid="%d" xmin="%d" wait_time="%s" wait_event="%s" wait_event_name="%s" blocked_by_pids="%v"`,
+		state.LastRow.DatabaseName.String,
+		state.LastRow.PID,
+		leaderPID,
+		state.LastRow.Username.String,
+		state.LastRow.BackendType.String,
+		we.LastState,
+		state.LastRow.BackendXID.Int64,
+		state.LastRow.BackendXmin.Int64,
+		we.LastWaitTime,
+		we.WaitEvent,
+		waitEventFullName,
+		we.BlockedByPIDs,
+	)
+}
+
+func (c *QuerySamples) buildWaitEventV6Labels(state *SampleState, we WaitEventOccurrence) string {
+	waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)
+	leaderPID := ""
+	if state.LastRow.LeaderPID.Valid {
+		leaderPID = fmt.Sprintf(`%d`, state.LastRow.LeaderPID.Int64)
+	}
+	return fmt.Sprintf(
+		`datname="%s" pid="%d" leader_pid="%s" user="%s" backend_type="%s" state="%s" xid="%d" xmin="%d" wait_time="%s" wait_event_type="%s" wait_event="%s" wait_event_name="%s" blocked_by_pids="%v" queryid="%d" dbname="%s"`,
+		state.LastRow.DatabaseName.String,
+		state.LastRow.PID,
+		leaderPID,
+		state.LastRow.Username.String,
+		state.LastRow.BackendType.String,
+		we.LastState,
+		state.LastRow.BackendXID.Int64,
+		state.LastRow.BackendXmin.Int64,
+		we.LastWaitTime,
+		classifyPostgresWaitEventType(we.WaitEventType),
+		we.WaitEvent,
+		waitEventFullName,
+		we.BlockedByPIDs,
+		state.LastRow.QueryID.Int64,
+		state.LastRow.DatabaseName.String,
 	)
 }
 

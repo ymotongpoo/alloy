@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/grafana/alloy/internal/component/database_observability"
 	"github.com/grafana/alloy/internal/runtime/logging"
 	"github.com/grafana/alloy/internal/runtime/logging/level"
+	"github.com/grafana/loki/pkg/push"
 )
 
 const (
@@ -23,6 +25,10 @@ const (
 	OP_QUERY_SAMPLE_V2    = "query_sample_v2"
 	OP_WAIT_EVENT         = "wait_event"
 	OP_WAIT_EVENT_V2      = "wait_event_v2"
+	OP_WAIT_EVENT_V3      = "wait_event_v3"
+	OP_WAIT_EVENT_V4      = "wait_event_v4"
+	OP_WAIT_EVENT_V5      = "wait_event_v5"
+	OP_WAIT_EVENT_V6      = "wait_event_v6"
 
 	cpuTimeField              = `, statements.CPU_TIME`
 	maxControlledMemoryField  = `, statements.MAX_CONTROLLED_MEMORY`
@@ -33,6 +39,22 @@ const (
 	endOfTimeline             = ` AND statements.TIMER_END > ? AND statements.TIMER_END <= ?`
 	beginningAndEndOfTimeline = ` AND statements.TIMER_END > ? OR statements.TIMER_END <= ?`
 )
+
+func classifyMySQLWaitEventType(eventName string) string {
+	switch {
+	case strings.HasPrefix(eventName, "wait/io/file/") ||
+		strings.HasPrefix(eventName, "wait/io/table/"):
+		return "IO Wait"
+	case strings.HasPrefix(eventName, "wait/io/lock/") ||
+		strings.HasPrefix(eventName, "wait/synch/") ||
+		strings.HasPrefix(eventName, "wait/lock/"):
+		return "Lock Wait"
+	case strings.HasPrefix(eventName, "wait/io/socket/"):
+		return "Network Wait"
+	default:
+		return "Other Wait"
+	}
+}
 
 const selectUptime = `SELECT variable_value FROM performance_schema.global_status WHERE variable_name = 'UPTIME'`
 
@@ -488,22 +510,98 @@ func (c *QuerySamples) fetchQuerySamples(ctx context.Context) error {
 					waitBaseLogMessage += fmt.Sprintf(` sql_text="%s"`, row.SQLText.String)
 				}
 
-				c.entryHandler.Chan() <- database_observability.BuildV2LokiEntry(
-					logging.LevelInfo,
-					OP_WAIT_EVENT_V2,
-					waitBaseLogMessage,
-					[]database_observability.Field{{Name: "schema", Value: row.Schema.String}},
-					[]database_observability.Field{
-						{Name: "digest", Value: row.Digest.String},
-						{Name: "wait_event_name", Value: row.WaitEventName.String},
-					},
-					c.enableIndexedLabels,
-					c.enableStructuredMetadata,
-					int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
-				)
-			}
+			c.entryHandler.Chan() <- database_observability.BuildV2LokiEntry(
+				logging.LevelInfo,
+				OP_WAIT_EVENT_V2,
+				waitBaseLogMessage,
+				[]database_observability.Field{{Name: "schema", Value: row.Schema.String}},
+				[]database_observability.Field{
+					{Name: "digest", Value: row.Digest.String},
+					{Name: "wait_event_name", Value: row.WaitEventName.String},
+				},
+				c.enableIndexedLabels,
+				c.enableStructuredMetadata,
+				int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
+			)
 		}
+
+		if c.enableStructuredMetadata {
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
+				logging.LevelInfo,
+				OP_WAIT_EVENT_V3,
+				waitLogMessage,
+				push.LabelsAdapter{{Name: "wait_event_type", Value: classifyMySQLWaitEventType(row.WaitEventName.String)}},
+				int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
+			)
+
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
+				logging.LevelInfo,
+				OP_WAIT_EVENT_V5,
+				waitLogMessage,
+				push.LabelsAdapter{
+					{Name: "wait_event_type", Value: classifyMySQLWaitEventType(row.WaitEventName.String)},
+					{Name: "queryid", Value: row.Digest.String},
+					{Name: "dbname", Value: row.Schema.String},
+				},
+				int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
+			)
+		}
+
+		waitV4LogMessage := fmt.Sprintf(
+			`schema="%s" user="%s" client_host="%s" thread_id="%s" digest="%s" event_id="%s" wait_event_id="%s" wait_end_event_id="%s" wait_event_name="%s" wait_event_type="%s" wait_object_name="%s" wait_object_type="%s" wait_time="%fms"`,
+			row.Schema.String,
+			row.User.String,
+			row.Host.String,
+			row.ThreadID.String,
+			row.Digest.String,
+			row.StatementEventID.String,
+			row.WaitEventID.String,
+			row.WaitEndEventID.String,
+			row.WaitEventName.String,
+			classifyMySQLWaitEventType(row.WaitEventName.String),
+			row.WaitObjectName.String,
+			row.WaitObjectType.String,
+			waitTime,
+		)
+		if c.disableQueryRedaction && row.SQLText.Valid {
+			waitV4LogMessage += fmt.Sprintf(` sql_text="%s"`, row.SQLText.String)
+		}
+		c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithTimestamp(
+			logging.LevelInfo,
+			OP_WAIT_EVENT_V4,
+			waitV4LogMessage,
+			int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
+		)
+
+		waitV6LogMessage := fmt.Sprintf(
+			`schema="%s" user="%s" client_host="%s" thread_id="%s" digest="%s" event_id="%s" wait_event_id="%s" wait_end_event_id="%s" wait_event_name="%s" wait_event_type="%s" wait_object_name="%s" wait_object_type="%s" wait_time="%fms" queryid="%s" dbname="%s"`,
+			row.Schema.String,
+			row.User.String,
+			row.Host.String,
+			row.ThreadID.String,
+			row.Digest.String,
+			row.StatementEventID.String,
+			row.WaitEventID.String,
+			row.WaitEndEventID.String,
+			row.WaitEventName.String,
+			classifyMySQLWaitEventType(row.WaitEventName.String),
+			row.WaitObjectName.String,
+			row.WaitObjectType.String,
+			waitTime,
+			row.Digest.String,
+			row.Schema.String,
+		)
+		if c.disableQueryRedaction && row.SQLText.Valid {
+			waitV6LogMessage += fmt.Sprintf(` sql_text="%s"`, row.SQLText.String)
+		}
+		c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithTimestamp(
+			logging.LevelInfo,
+			OP_WAIT_EVENT_V6,
+			waitV6LogMessage,
+			int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
+		)
 	}
+}
 
 	if err := rs.Err(); err != nil {
 		return fmt.Errorf("failed to iterate over samples result set: %w", err)

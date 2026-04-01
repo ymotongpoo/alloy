@@ -42,11 +42,12 @@ func TestQuerySamples_FetchQuerySamples(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name                  string
-		setupMock             func(mock sqlmock.Sqlmock)
-		disableQueryRedaction bool
-		expectedLabels        []model.LabelSet
-		expectedLines         []string
+		name                       string
+		setupMock                  func(mock sqlmock.Sqlmock)
+		disableQueryRedaction      bool
+		expectedLabels             []model.LabelSet
+		expectedLines              []string
+		expectedStructuredMetadata []push.LabelsAdapter
 	}{
 		{
 			name: "active query without wait event",
@@ -107,15 +108,19 @@ func TestQuerySamples_FetchQuerySamples(t *testing.T) {
 				mock.ExpectQuery(fmt.Sprintf(selectPgStatActivity, "", exclusionClause, excludeCurrentUserClause, "")).RowsWillBeClosed().
 					WillReturnRows(sqlmock.NewRows(columns))
 			},
-			expectedLabels: []model.LabelSet{
-				{"op": OP_QUERY_SAMPLE},
-				{"op": OP_WAIT_EVENT},
-			},
-			expectedLines: []string{
-				`level="info" datname="testdb" pid="102" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="waiting" xid="0" xmin="0" xact_time="2m0s" query_time="0s" queryid="124"`,
-				`level="info" datname="testdb" pid="102" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124"`,
-			},
+		expectedLabels: []model.LabelSet{
+			{"op": OP_QUERY_SAMPLE},
+			{"op": OP_WAIT_EVENT},
+			{"op": OP_WAIT_EVENT_V4},
+			{"op": OP_WAIT_EVENT_V6},
 		},
+		expectedLines: []string{
+			`level="info" datname="testdb" pid="102" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="waiting" xid="0" xmin="0" xact_time="2m0s" query_time="0s" queryid="124"`,
+			`level="info" datname="testdb" pid="102" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124"`,
+			`level="info" datname="testdb" pid="102" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124"`,
+			`level="info" datname="testdb" pid="102" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124" dbname="testdb"`,
+		},
+	},
 		{
 			name: "query with redaction disabled",
 			setupMock: func(mock sqlmock.Sqlmock) {
@@ -173,16 +178,19 @@ func TestQuerySamples_FetchQuerySamples(t *testing.T) {
 				return len(lokiClient.Received()) == len(tc.expectedLines)
 			}, 5*time.Second, 100*time.Millisecond)
 
-			entries := lokiClient.Received()
-			for i, entry := range entries {
-				if !reflect.DeepEqual(entry.Labels, tc.expectedLabels[i]) {
-					t.Errorf("expected label %v, got %v", tc.expectedLabels[i], entry.Labels)
-				}
-				require.Equal(t, entry.Line, tc.expectedLines[i])
-				// Verify that BuildLokiEntryWithTimestamp is setting the timestamp correctly
-				expectedTimestamp := time.Unix(0, now.UnixNano())
-				require.True(t, entry.Timestamp.Equal(expectedTimestamp))
+		entries := lokiClient.Received()
+		for i, entry := range entries {
+			if !reflect.DeepEqual(entry.Labels, tc.expectedLabels[i]) {
+				t.Errorf("expected label %v, got %v", tc.expectedLabels[i], entry.Labels)
 			}
+			require.Equal(t, entry.Line, tc.expectedLines[i])
+			// Verify that BuildLokiEntryWithTimestamp is setting the timestamp correctly
+			expectedTimestamp := time.Unix(0, now.UnixNano())
+			require.True(t, entry.Timestamp.Equal(expectedTimestamp))
+			if i < len(tc.expectedStructuredMetadata) && tc.expectedStructuredMetadata[i] != nil {
+				require.Equal(t, tc.expectedStructuredMetadata[i], entry.StructuredMetadata)
+			}
+		}
 
 			sampleCollector.Stop()
 			require.Eventually(t, func() bool {
@@ -437,14 +445,20 @@ func TestQuerySamples_FinalizationScenarios(t *testing.T) {
 		require.NoError(t, sampleCollector.Start(t.Context()))
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 2
+			return len(lokiClient.Received()) == 4
 		}, 5*time.Second, 100*time.Millisecond)
 
 		entries := lokiClient.Received()
-		require.Len(t, entries, 2)
+		require.Len(t, entries, 4)
 		require.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, entries[0].Labels)
 		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, entries[1].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="300" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="12s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124"`, entries[1].Line)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, entries[2].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="300" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="12s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124"`, entries[2].Line)
+		require.Empty(t, entries[2].StructuredMetadata)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, entries[3].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="300" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="12s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="124" dbname="testdb"`, entries[3].Line)
+		require.Empty(t, entries[3].StructuredMetadata)
 
 		sampleCollector.Stop()
 		require.Eventually(t, func() bool {
@@ -504,15 +518,21 @@ func TestQuerySamples_FinalizationScenarios(t *testing.T) {
 		require.NoError(t, sampleCollector.Start(t.Context()))
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 2
+			return len(lokiClient.Received()) == 4
 		}, 5*time.Second, 100*time.Millisecond)
 
 		entries := lokiClient.Received()
-		require.Len(t, entries, 2)
+		require.Len(t, entries, 4)
 		require.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, entries[0].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="301" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="active" xid="0" xmin="0" xact_time="2m0s" query_time="0s" queryid="555" cpu_time="0s" query="UPDATE users SET status = 'active'"`, entries[0].Line)
 		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, entries[1].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="301" leader_pid="" user="testuser" backend_type="client backend" state="active" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="555"`, entries[1].Line)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, entries[2].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="301" leader_pid="" user="testuser" backend_type="client backend" state="active" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="555"`, entries[2].Line)
+		require.Empty(t, entries[2].StructuredMetadata)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, entries[3].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="301" leader_pid="" user="testuser" backend_type="client backend" state="active" xid="0" xmin="0" wait_time="10s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="555" dbname="testdb"`, entries[3].Line)
+		require.Empty(t, entries[3].StructuredMetadata)
 
 		sampleCollector.Stop()
 		require.Eventually(t, func() bool {
@@ -572,15 +592,21 @@ func TestQuerySamples_FinalizationScenarios(t *testing.T) {
 		require.NoError(t, sampleCollector.Start(t.Context()))
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 2
+			return len(lokiClient.Received()) == 4
 		}, 5*time.Second, 100*time.Millisecond)
 
 		entries := lokiClient.Received()
-		require.Len(t, entries, 2)
+		require.Len(t, entries, 4)
 		require.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, entries[0].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="402" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="waiting" xid="0" xmin="0" xact_time="2m0s" query_time="30s" queryid="9002" cpu_time="10s" query="SELECT * FROM t"`, entries[0].Line)
 		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, entries[1].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="402" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="7s" wait_event_type="IO" wait_event="DataFileRead" wait_event_name="IO:DataFileRead" blocked_by_pids="[501]" queryid="9002"`, entries[1].Line)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, entries[2].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="402" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="7s" wait_event_type="IO Wait" wait_event="DataFileRead" wait_event_name="IO:DataFileRead" blocked_by_pids="[501]" queryid="9002"`, entries[2].Line)
+		require.Empty(t, entries[2].StructuredMetadata)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, entries[3].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="402" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="7s" wait_event_type="IO Wait" wait_event="DataFileRead" wait_event_name="IO:DataFileRead" blocked_by_pids="[501]" queryid="9002" dbname="testdb"`, entries[3].Line)
+		require.Empty(t, entries[3].StructuredMetadata)
 
 		sampleCollector.Stop()
 		require.Eventually(t, func() bool {
@@ -640,17 +666,29 @@ func TestQuerySamples_FinalizationScenarios(t *testing.T) {
 		require.NoError(t, sampleCollector.Start(t.Context()))
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 3
+			return len(lokiClient.Received()) == 7
 		}, 5*time.Second, 100*time.Millisecond)
 
 		entries := lokiClient.Received()
-		require.Len(t, entries, 3)
+		require.Len(t, entries, 7)
 		require.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, entries[0].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="waiting" xid="0" xmin="0" xact_time="2m0s" query_time="30s" queryid="9003" query="UPDATE t SET c=1"`, entries[0].Line)
 		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, entries[1].Labels)
 		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="5s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103]" queryid="9003"`, entries[1].Line)
-		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, entries[2].Labels)
-		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="8s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="9003"`, entries[2].Line)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, entries[2].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="5s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103]" queryid="9003"`, entries[2].Line)
+		require.Empty(t, entries[2].StructuredMetadata)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, entries[3].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="5s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103]" queryid="9003" dbname="testdb"`, entries[3].Line)
+		require.Empty(t, entries[3].StructuredMetadata)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, entries[4].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="8s" wait_event_type="Lock" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="9003"`, entries[4].Line)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, entries[5].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="8s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="9003"`, entries[5].Line)
+		require.Empty(t, entries[5].StructuredMetadata)
+		require.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, entries[6].Labels)
+		require.Equal(t, `level="info" datname="testdb" pid="403" leader_pid="" user="testuser" backend_type="client backend" state="waiting" xid="0" xmin="0" wait_time="8s" wait_event_type="Lock Wait" wait_event="relation" wait_event_name="Lock:relation" blocked_by_pids="[103 104]" queryid="9003" dbname="testdb"`, entries[6].Line)
+		require.Empty(t, entries[6].StructuredMetadata)
 
 		sampleCollector.Stop()
 		require.Eventually(t, func() bool {
@@ -1351,6 +1389,31 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			require.Eventually(t, func() bool {
 				return mock.ExpectationsWereMet() == nil
 			}, 5*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+func TestClassifyPostgresWaitEventType(t *testing.T) {
+	tests := []struct {
+		rawType  string
+		expected string
+	}{
+		{"IO", "IO Wait"},
+		{"Lock", "Lock Wait"},
+		{"LWLock", "Lock Wait"},
+		{"Activity", "Lock Wait"},
+		{"Extension", "Lock Wait"},
+		{"InjectionPoint", "Lock Wait"},
+		{"IPC", "Lock Wait"},
+		{"Timeout", "Lock Wait"},
+		{"BufferPin", "Lock Wait"},
+		{"Client", "Network Wait"},
+		{"Unknown", "Other Wait"},
+		{"", "Other Wait"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.rawType, func(t *testing.T) {
+			require.Equal(t, tt.expected, classifyPostgresWaitEventType(tt.rawType))
 		})
 	}
 }

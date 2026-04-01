@@ -25,6 +25,17 @@ func BuildLokiEntry(level logging.Level, op, line string) loki.Entry {
 	return BuildLokiEntryWithTimestamp(level, op, line, time.Now().UnixNano())
 }
 
+func BuildLokiEntryWithStructuredMetadataAndTimestamp(level logging.Level, op, line string, structuredMetadata push.LabelsAdapter, timestamp int64) loki.Entry {
+	return loki.NewEntry(
+		model.LabelSet{"op": model.LabelValue(op)},
+		push.Entry{
+			Timestamp:          time.Unix(0, timestamp),
+			Line:               fmt.Sprintf(`level="%s" %s`, level, line),
+			StructuredMetadata: structuredMetadata,
+		},
+	)
+}
+
 // Field is a name-value pair routed to an indexed label, structured metadata,
 // or the log line depending on feature flags. Empty values are omitted.
 type Field struct {

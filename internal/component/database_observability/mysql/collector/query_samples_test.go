@@ -312,7 +312,7 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 2
+			return len(lokiClient.Received()) == 4
 		}, 5*time.Second, 100*time.Millisecond)
 
 		collector.Stop()
@@ -330,6 +330,12 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" event_id=\"123\" end_event_id=\"234\" digest=\"some_digest\" rows_examined=\"5\" rows_sent=\"5\" rows_affected=\"0\" errors=\"0\" max_controlled_memory=\"456b\" max_total_memory=\"457b\" cpu_time=\"0.010000ms\" elapsed_time=\"0.020000ms\" elapsed_time_ms=\"0.020000ms\"", lokiEntries[0].Line)
 		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[1].Labels)
 		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"124\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"0.100000ms\"", lokiEntries[1].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[2].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"124\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_event_type=\"IO Wait\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"0.100000ms\"", lokiEntries[2].Line)
+		assert.Empty(t, lokiEntries[2].StructuredMetadata)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[3].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"124\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_event_type=\"IO Wait\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"0.100000ms\" queryid=\"some_digest\" dbname=\"some_schema\"", lokiEntries[3].Line)
+		assert.Empty(t, lokiEntries[3].StructuredMetadata)
 	})
 
 	t.Run("wait event with NULL timer_wait is skipped", func(t *testing.T) {
@@ -582,7 +588,7 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 5
+			return len(lokiClient.Received()) == 13
 		}, 5*time.Second, 100*time.Millisecond)
 
 		collector.Stop()
@@ -600,12 +606,28 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" event_id=\"123\" end_event_id=\"234\" digest=\"some_digest\" rows_examined=\"5\" rows_sent=\"5\" rows_affected=\"0\" errors=\"0\" max_controlled_memory=\"456b\" max_total_memory=\"457b\" cpu_time=\"0.010000ms\" elapsed_time=\"0.020000ms\" elapsed_time_ms=\"0.020000ms\"", lokiEntries[0].Line)
 		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[1].Labels)
 		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/lock/table/sql/handler\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000150ms\"", lokiEntries[1].Line)
-		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[2].Labels)
-		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"126\" wait_end_event_id=\"126\" wait_event_name=\"wait/lock/table/sql/handler\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000350ms\"", lokiEntries[2].Line)
-		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[3].Labels)
-		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"127\" wait_end_event_id=\"127\" wait_event_name=\"wait/io/table/sql/handler\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000500ms\"", lokiEntries[3].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[2].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/lock/table/sql/handler\" wait_event_type=\"Lock Wait\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000150ms\"", lokiEntries[2].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[3].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/lock/table/sql/handler\" wait_event_type=\"Lock Wait\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000150ms\" queryid=\"some_digest\" dbname=\"books_store\"", lokiEntries[3].Line)
 		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[4].Labels)
-		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"128\" wait_end_event_id=\"128\" wait_event_name=\"wait/io/table/sql/handler\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000700ms\"", lokiEntries[4].Line)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"126\" wait_end_event_id=\"126\" wait_event_name=\"wait/lock/table/sql/handler\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000350ms\"", lokiEntries[4].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[5].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"126\" wait_end_event_id=\"126\" wait_event_name=\"wait/lock/table/sql/handler\" wait_event_type=\"Lock Wait\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000350ms\"", lokiEntries[5].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[6].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"126\" wait_end_event_id=\"126\" wait_event_name=\"wait/lock/table/sql/handler\" wait_event_type=\"Lock Wait\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000350ms\" queryid=\"some_digest\" dbname=\"books_store\"", lokiEntries[6].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[7].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"127\" wait_end_event_id=\"127\" wait_event_name=\"wait/io/table/sql/handler\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000500ms\"", lokiEntries[7].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[8].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"127\" wait_end_event_id=\"127\" wait_event_name=\"wait/io/table/sql/handler\" wait_event_type=\"IO Wait\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000500ms\"", lokiEntries[8].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[9].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"127\" wait_end_event_id=\"127\" wait_event_name=\"wait/io/table/sql/handler\" wait_event_type=\"IO Wait\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000500ms\" queryid=\"some_digest\" dbname=\"books_store\"", lokiEntries[9].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[10].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"128\" wait_end_event_id=\"128\" wait_event_name=\"wait/io/table/sql/handler\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000700ms\"", lokiEntries[10].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[11].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"128\" wait_end_event_id=\"128\" wait_event_name=\"wait/io/table/sql/handler\" wait_event_type=\"IO Wait\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000700ms\"", lokiEntries[11].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[12].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"128\" wait_end_event_id=\"128\" wait_event_name=\"wait/io/table/sql/handler\" wait_event_type=\"IO Wait\" wait_object_name=\"categories\" wait_object_type=\"TABLE\" wait_time=\"0.000700ms\" queryid=\"some_digest\" dbname=\"books_store\"", lokiEntries[12].Line)
 	})
 
 	t.Run("query sample and its wait event and another query sample are collected", func(t *testing.T) {
@@ -711,7 +733,7 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 3
+			return len(lokiClient.Received()) == 5
 		}, 5*time.Second, 100*time.Millisecond)
 
 		collector.Stop()
@@ -729,8 +751,12 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" event_id=\"123\" end_event_id=\"234\" digest=\"some_digest\" rows_examined=\"5\" rows_sent=\"5\" rows_affected=\"0\" errors=\"0\" max_controlled_memory=\"456b\" max_total_memory=\"457b\" cpu_time=\"0.010000ms\" elapsed_time=\"0.020000ms\" elapsed_time_ms=\"0.020000ms\"", lokiEntries[0].Line)
 		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[1].Labels)
 		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/lock/table/sql/handler\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000150ms\"", lokiEntries[1].Line)
-		assert.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, lokiEntries[2].Labels)
-		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" event_id=\"126\" end_event_id=\"234\" digest=\"another_digest\" rows_examined=\"5\" rows_sent=\"5\" rows_affected=\"0\" errors=\"0\" max_controlled_memory=\"456b\" max_total_memory=\"457b\" cpu_time=\"0.010000ms\" elapsed_time=\"0.020000ms\" elapsed_time_ms=\"0.020000ms\"", lokiEntries[2].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[2].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/lock/table/sql/handler\" wait_event_type=\"Lock Wait\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000150ms\"", lokiEntries[2].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[3].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/lock/table/sql/handler\" wait_event_type=\"Lock Wait\" wait_object_name=\"books\" wait_object_type=\"TABLE\" wait_time=\"0.000150ms\" queryid=\"some_digest\" dbname=\"books_store\"", lokiEntries[3].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, lokiEntries[4].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"books_store\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" event_id=\"126\" end_event_id=\"234\" digest=\"another_digest\" rows_examined=\"5\" rows_sent=\"5\" rows_affected=\"0\" errors=\"0\" max_controlled_memory=\"456b\" max_total_memory=\"457b\" cpu_time=\"0.010000ms\" elapsed_time=\"0.020000ms\" elapsed_time_ms=\"0.020000ms\"", lokiEntries[4].Line)
 	})
 
 	t.Run("wait event with disabled sql redaction", func(t *testing.T) {
@@ -829,7 +855,7 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 2
+			return len(lokiClient.Received()) == 4
 		}, 5*time.Second, 100*time.Millisecond)
 
 		collector.Stop()
@@ -847,6 +873,12 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" event_id=\"123\" end_event_id=\"234\" digest=\"some_digest\" rows_examined=\"5\" rows_sent=\"5\" rows_affected=\"0\" errors=\"0\" max_controlled_memory=\"456b\" max_total_memory=\"457b\" cpu_time=\"0.010000ms\" elapsed_time=\"0.020000ms\" elapsed_time_ms=\"0.020000ms\" sql_text=\"select * from some_table where id = 1\"", lokiEntries[0].Line)
 		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[1].Labels)
 		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"0.100000ms\" sql_text=\"select * from some_table where id = 1\"", lokiEntries[1].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[2].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_event_type=\"IO Wait\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"0.100000ms\" sql_text=\"select * from some_table where id = 1\"", lokiEntries[2].Line)
+		assert.Empty(t, lokiEntries[2].StructuredMetadata)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[3].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"125\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_event_type=\"IO Wait\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"0.100000ms\" queryid=\"some_digest\" dbname=\"some_schema\" sql_text=\"select * from some_table where id = 1\"", lokiEntries[3].Line)
+		assert.Empty(t, lokiEntries[3].StructuredMetadata)
 	})
 
 	t.Run("wait event below wait_min_duration is filtered by SQL", func(t *testing.T) {
@@ -1027,7 +1059,7 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
-			return len(lokiClient.Received()) == 2
+			return len(lokiClient.Received()) == 4
 		}, 5*time.Second, 100*time.Millisecond)
 
 		collector.Stop()
@@ -1044,6 +1076,10 @@ func TestQuerySamples_WaitEvents(t *testing.T) {
 		assert.Equal(t, model.LabelSet{"op": OP_QUERY_SAMPLE}, lokiEntries[0].Labels)
 		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT}, lokiEntries[1].Labels)
 		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"124\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"1.000000ms\"", lokiEntries[1].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V4}, lokiEntries[2].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"124\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_event_type=\"IO Wait\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"1.000000ms\"", lokiEntries[2].Line)
+		assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V6}, lokiEntries[3].Labels)
+		assert.Equal(t, "level=\"info\" schema=\"some_schema\" user=\"some_user\" client_host=\"some_host\" thread_id=\"890\" digest=\"some_digest\" event_id=\"123\" wait_event_id=\"124\" wait_end_event_id=\"124\" wait_event_name=\"wait/io/file/innodb/innodb_data_file\" wait_event_type=\"IO Wait\" wait_object_name=\"wait_object_name\" wait_object_type=\"wait_object_type\" wait_time=\"1.000000ms\" queryid=\"some_digest\" dbname=\"some_schema\"", lokiEntries[3].Line)
 	})
 }
 
@@ -2987,9 +3023,14 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			err = collector.Start(t.Context())
 			require.NoError(t, err)
 
-			// expect: query_sample (V1) + query_sample_v2 + wait_event (V1) + wait_event_v2 = 4
+			// v1_qs + v2_qs + v1_wait + v2_wait + v4_wait + v6_wait = 6 (base)
+			// + v3_wait + v5_wait when SM is enabled = 8
+			expectedCount := 6
+			if tc.enableStructuredMetadata {
+				expectedCount = 8 // + v3_wait + v5_wait
+			}
 			require.Eventually(t, func() bool {
-				return len(lokiClient.Received()) == 4
+				return len(lokiClient.Received()) == expectedCount
 			}, 5*time.Second, 100*time.Millisecond)
 
 			collector.Stop()
@@ -3004,6 +3045,8 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			entries := lokiClient.Received()
 			// entries[0] = query_sample (V1), entries[1] = query_sample_v2
 			// entries[2] = wait_event (V1), entries[3] = wait_event_v2
+			// entries[4] = wait_event_v3 (SM only), entries[5] = wait_event_v5 (SM only)
+			// then wait_event_v4, wait_event_v6 (always)
 			assert.Equal(t, tc.sampleV2Labels, entries[1].Labels)
 			assert.Equal(t, tc.sampleV2Line, entries[1].Line)
 			assert.Equal(t, tc.sampleV2SM, entries[1].StructuredMetadata)
@@ -3011,6 +3054,26 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			assert.Equal(t, tc.waitV2Labels, entries[3].Labels)
 			assert.Equal(t, tc.waitV2Line, entries[3].Line)
 			assert.ElementsMatch(t, tc.waitV2SM, entries[3].StructuredMetadata)
+		})
+	}
+}
+
+func TestClassifyMySQLWaitEventType(t *testing.T) {
+	tests := []struct {
+		eventName string
+		expected  string
+	}{
+		{"wait/io/file/innodb/innodb_data_file", "IO Wait"},
+		{"wait/io/table/sql/handler", "IO Wait"},
+		{"wait/io/lock/sql/table_lock", "Lock Wait"},
+		{"wait/synch/cond/sql/COND_manager", "Lock Wait"},
+		{"wait/lock/table/sql/handler", "Lock Wait"},
+		{"wait/io/socket/sql/server_tcpip_socket", "Network Wait"},
+		{"wait/idle", "Other Wait"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.eventName, func(t *testing.T) {
+			require.Equal(t, tt.expected, classifyMySQLWaitEventType(tt.eventName))
 		})
 	}
 }
