@@ -532,7 +532,7 @@ func (c *QuerySamples) fetchQuerySamples(ctx context.Context) error {
 				waitLogMessage,
 				push.LabelsAdapter{
 					{Name: "wait_event_type", Value: classifyMySQLWaitEventType(row.WaitEventName.String)},
-				{Name: "queryid", Value: row.Digest.String},
+					{Name: "digest", Value: row.Digest.String},
 			},
 				int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
 			)
