@@ -2892,53 +2892,40 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 
 	testcases := []struct {
 		name                     string
-		enableIndexedLabels      bool
 		enableStructuredMetadata bool
-		sampleV2Labels           model.LabelSet
-		sampleV2Line             string
-		sampleV2SM               push.LabelsAdapter
-		waitV2Labels             model.LabelSet
-		waitV2Line               string
-		waitV2SM                 push.LabelsAdapter
+		// expected entry count:
+		// SM=true:  v1_qs + v2_qs + v1_wait + v2_wait + v3_wait + v5_wait + v4_wait + v6_wait = 8
+		// SM=false: v1_qs + v1_wait + v4_wait + v6_wait = 4
+		expectedCount int
+		sampleV2Labels model.LabelSet
+		sampleV2Line   string
+		sampleV2SM     push.LabelsAdapter
+		waitV2Labels   model.LabelSet
+		waitV2Line     string
+		waitV2SM       push.LabelsAdapter
 	}{
 		{
-			name:                     "both indexed labels and structured metadata enabled",
-			enableIndexedLabels:      true,
+			name:                     "structured metadata enabled",
 			enableStructuredMetadata: true,
-			sampleV2Labels:           model.LabelSet{"op": OP_QUERY_SAMPLE_V2, "schema": "some_schema"},
-			sampleV2Line:             `level="info" user="some_user" client_host="some_host" thread_id="890" event_id="123" end_event_id="234" rows_examined="5" rows_sent="5" rows_affected="0" errors="0" max_controlled_memory="456b" max_total_memory="457b" cpu_time="0.010000ms" elapsed_time="0.020000ms" elapsed_time_ms="0.020000ms"`,
-			sampleV2SM:               push.LabelsAdapter{{Name: "digest", Value: "some_digest"}},
-			waitV2Labels:             model.LabelSet{"op": OP_WAIT_EVENT_V2, "schema": "some_schema"},
-			waitV2Line:               `level="info" thread_id="890" event_id="123" wait_event_id="124" wait_end_event_id="124" wait_object_type="wait_object_type" wait_object_name="wait_object_name" wait_time="0.100000ms"`,
-			waitV2SM: push.LabelsAdapter{
-				{Name: "digest", Value: "some_digest"},
-				{Name: "wait_event_name", Value: "wait/io/file/innodb/innodb_data_file"},
-			},
-		},
-		{
-			name:                     "only indexed labels enabled",
-			enableIndexedLabels:      true,
-			enableStructuredMetadata: false,
-			sampleV2Labels:           model.LabelSet{"op": OP_QUERY_SAMPLE_V2, "schema": "some_schema"},
-			sampleV2Line:             `level="info" user="some_user" client_host="some_host" thread_id="890" event_id="123" end_event_id="234" rows_examined="5" rows_sent="5" rows_affected="0" errors="0" max_controlled_memory="456b" max_total_memory="457b" cpu_time="0.010000ms" elapsed_time="0.020000ms" elapsed_time_ms="0.020000ms" digest="some_digest"`,
-			sampleV2SM:               nil,
-			waitV2Labels:             model.LabelSet{"op": OP_WAIT_EVENT_V2, "schema": "some_schema"},
-			waitV2Line:               `level="info" thread_id="890" event_id="123" wait_event_id="124" wait_end_event_id="124" wait_object_type="wait_object_type" wait_object_name="wait_object_name" wait_time="0.100000ms" digest="some_digest" wait_event_name="wait/io/file/innodb/innodb_data_file"`,
-			waitV2SM:                 nil,
-		},
-		{
-			name:                     "only structured metadata enabled",
-			enableIndexedLabels:      false,
-			enableStructuredMetadata: true,
+			expectedCount:            8,
 			sampleV2Labels:           model.LabelSet{"op": OP_QUERY_SAMPLE_V2},
-			sampleV2Line:             `level="info" schema="some_schema" user="some_user" client_host="some_host" thread_id="890" event_id="123" end_event_id="234" rows_examined="5" rows_sent="5" rows_affected="0" errors="0" max_controlled_memory="456b" max_total_memory="457b" cpu_time="0.010000ms" elapsed_time="0.020000ms" elapsed_time_ms="0.020000ms"`,
-			sampleV2SM:               push.LabelsAdapter{{Name: "digest", Value: "some_digest"}},
-			waitV2Labels:             model.LabelSet{"op": OP_WAIT_EVENT_V2},
-			waitV2Line:               `level="info" schema="some_schema" thread_id="890" event_id="123" wait_event_id="124" wait_end_event_id="124" wait_object_type="wait_object_type" wait_object_name="wait_object_name" wait_time="0.100000ms"`,
+			sampleV2Line: `level="info" user="some_user" client_host="some_host" thread_id="890" event_id="123" end_event_id="234" rows_examined="5" rows_sent="5" rows_affected="0" errors="0" max_controlled_memory="456b" max_total_memory="457b" cpu_time="0.010000ms" elapsed_time="0.020000ms" elapsed_time_ms="0.020000ms"`,
+			sampleV2SM: push.LabelsAdapter{
+				{Name: "schema", Value: "some_schema"},
+				{Name: "digest", Value: "some_digest"},
+			},
+			waitV2Labels: model.LabelSet{"op": OP_WAIT_EVENT_V2},
+			waitV2Line:   `level="info" thread_id="890" event_id="123" wait_event_id="124" wait_end_event_id="124" wait_object_type="wait_object_type" wait_object_name="wait_object_name" wait_time="0.100000ms"`,
 			waitV2SM: push.LabelsAdapter{
+				{Name: "schema", Value: "some_schema"},
 				{Name: "digest", Value: "some_digest"},
 				{Name: "wait_event_name", Value: "wait/io/file/innodb/innodb_data_file"},
 			},
+		},
+		{
+			name:                     "structured metadata disabled",
+			enableStructuredMetadata: false,
+			expectedCount:            4, // v1_qs + v1_wait + v4_wait + v6_wait
 		},
 	}
 
@@ -2958,7 +2945,6 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 				CollectInterval:          time.Second,
 				EntryHandler:             lokiClient,
 				Logger:                   log.NewLogfmtLogger(os.Stderr),
-				EnableIndexedLabels:      tc.enableIndexedLabels,
 				EnableStructuredMetadata: tc.enableStructuredMetadata,
 			})
 			require.NoError(t, err)
@@ -3023,14 +3009,8 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			err = collector.Start(t.Context())
 			require.NoError(t, err)
 
-			// v1_qs + v2_qs + v1_wait + v2_wait + v4_wait + v6_wait = 6 (base)
-			// + v3_wait + v5_wait when SM is enabled = 8
-			expectedCount := 6
-			if tc.enableStructuredMetadata {
-				expectedCount = 8 // + v3_wait + v5_wait
-			}
 			require.Eventually(t, func() bool {
-				return len(lokiClient.Received()) == expectedCount
+				return len(lokiClient.Received()) == tc.expectedCount
 			}, 5*time.Second, 100*time.Millisecond)
 
 			collector.Stop()
@@ -3042,11 +3022,15 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 
 			require.NoError(t, mock.ExpectationsWereMet())
 
+			if !tc.enableStructuredMetadata {
+				return
+			}
+
 			entries := lokiClient.Received()
 			// entries[0] = query_sample (V1), entries[1] = query_sample_v2
 			// entries[2] = wait_event (V1), entries[3] = wait_event_v2
-			// entries[4] = wait_event_v3 (SM only), entries[5] = wait_event_v5 (SM only)
-			// then wait_event_v4, wait_event_v6 (always)
+			// entries[4] = wait_event_v3 (SM), entries[5] = wait_event_v5 (SM)
+			// entries[6] = wait_event_v4, entries[7] = wait_event_v6
 			assert.Equal(t, tc.sampleV2Labels, entries[1].Labels)
 			assert.Equal(t, tc.sampleV2Line, entries[1].Line)
 			assert.Equal(t, tc.sampleV2SM, entries[1].StructuredMetadata)
@@ -3055,13 +3039,13 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			assert.Equal(t, tc.waitV2Line, entries[3].Line)
 			assert.ElementsMatch(t, tc.waitV2SM, entries[3].StructuredMetadata)
 
-			if tc.enableStructuredMetadata {
-				assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V3}, entries[4].Labels)
-				assert.ElementsMatch(t, push.LabelsAdapter{
-					{Name: "wait_event_type", Value: "IO Wait"},
-					{Name: "queryid", Value: "some_digest"},
-				}, entries[4].StructuredMetadata)
-			}
+			assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V3}, entries[4].Labels)
+			assert.Equal(t, tc.waitV2Line, entries[4].Line)
+			assert.ElementsMatch(t, push.LabelsAdapter{
+				{Name: "schema", Value: "some_schema"},
+				{Name: "wait_event_type", Value: "IO Wait"},
+				{Name: "digest", Value: "some_digest"},
+			}, entries[4].StructuredMetadata)
 		})
 	}
 }

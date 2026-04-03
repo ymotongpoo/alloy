@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/alloy/internal/component/database_observability"
 	"github.com/grafana/alloy/internal/runtime/logging"
 	"github.com/grafana/alloy/internal/runtime/logging/level"
+	"github.com/grafana/loki/pkg/push"
 )
 
 const (
@@ -54,7 +55,6 @@ type QueryDetailsArguments struct {
 	ExcludeUsers             []string
 	EntryHandler             loki.EntryHandler
 	TableRegistry            *TableRegistry
-	EnableIndexedLabels      bool
 	EnableStructuredMetadata bool
 
 	Logger log.Logger
@@ -68,7 +68,6 @@ type QueryDetails struct {
 	excludeUsers             []string
 	entryHandler             loki.EntryHandler
 	tableRegistry            *TableRegistry
-	enableIndexedLabels      bool
 	enableStructuredMetadata bool
 	normalizer               *sqllexer.Normalizer
 
@@ -88,7 +87,6 @@ func NewQueryDetails(args QueryDetailsArguments) (*QueryDetails, error) {
 		excludeUsers:             args.ExcludeUsers,
 		entryHandler:             args.EntryHandler,
 		tableRegistry:            args.TableRegistry,
-		enableIndexedLabels:      args.EnableIndexedLabels,
 		enableStructuredMetadata: args.EnableStructuredMetadata,
 		normalizer:               sqllexer.NewNormalizer(sqllexer.WithCollectTables(true), sqllexer.WithCollectComments(true), sqllexer.WithKeepIdentifierQuotation(true)),
 		logger:                   log.With(args.Logger, "collector", QueryDetailsCollector),
@@ -173,15 +171,15 @@ func (c *QueryDetails) fetchAndAssociate(ctx context.Context) error {
 			fmt.Sprintf(`queryid="%s" querytext=%q datname="%s"`, queryID, queryText, databaseName),
 		)
 
-		if c.enableIndexedLabels || c.enableStructuredMetadata {
-			c.entryHandler.Chan() <- database_observability.BuildV2LokiEntry(
+		if c.enableStructuredMetadata {
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
 				logging.LevelInfo,
 				OP_QUERY_ASSOCIATION_V2,
 				fmt.Sprintf(`querytext=%q`, queryText),
-				[]database_observability.Field{{Name: "datname", Value: string(databaseName)}},
-				[]database_observability.Field{{Name: "queryid", Value: queryID}},
-				c.enableIndexedLabels,
-				c.enableStructuredMetadata,
+				push.LabelsAdapter{
+					{Name: "datname", Value: string(databaseName)},
+					{Name: "queryid", Value: queryID},
+				},
 				time.Now().UnixNano(),
 			)
 		}

@@ -73,8 +73,7 @@ type Arguments struct {
 	ExcludeDatabases  []string            `alloy:"exclude_databases,attr,optional"`
 	ExcludeUsers      []string            `alloy:"exclude_users,attr,optional"`
 
-	// Temporary feature flags for structured logging experiments.
-	EnableIndexedLabels      bool `alloy:"enable_indexed_labels,attr,optional"`
+	// Temporary feature flag for structured logging experiments.
 	EnableStructuredMetadata bool `alloy:"enable_structured_metadata,attr,optional"`
 
 	CloudProvider          *CloudProvider               `alloy:"cloud_provider,block,optional"`
@@ -122,7 +121,6 @@ type SchemaDetailsArguments struct {
 var DefaultArguments = Arguments{
 	ExcludeDatabases:         []string{},
 	ExcludeUsers:             []string{},
-	EnableIndexedLabels:      false,
 	EnableStructuredMetadata: false,
 	QuerySampleArguments: QuerySampleArguments{
 		CollectInterval:       15 * time.Second,
@@ -570,7 +568,6 @@ func (c *Component) startCollectors(systemID string, engineVersion string, cloud
 			EntryHandler:             entryHandler,
 			TableRegistry:            tableRegistry,
 			Logger:                   c.opts.Logger,
-			EnableIndexedLabels:      c.args.EnableIndexedLabels,
 			EnableStructuredMetadata: c.args.EnableStructuredMetadata,
 		})
 		if err != nil {
@@ -592,7 +589,6 @@ func (c *Component) startCollectors(systemID string, engineVersion string, cloud
 			Logger:                   c.opts.Logger,
 			DisableQueryRedaction:    c.args.QuerySampleArguments.DisableQueryRedaction,
 			ExcludeCurrentUser:       c.args.QuerySampleArguments.ExcludeCurrentUser,
-			EnableIndexedLabels:      c.args.EnableIndexedLabels,
 			EnableStructuredMetadata: c.args.EnableStructuredMetadata,
 		})
 		if err != nil {

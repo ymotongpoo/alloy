@@ -36,7 +36,6 @@ You can use the following arguments with `database_observability.postgres`:
 | `enable_collectors`          | `list(string)`       | A list of collectors to enable on top of the default set.                               |         | no       |
 | `exclude_databases`          | `list(string)`       | A list of databases to exclude from monitoring.                                         |         | no       |
 | `exclude_users`              | `list(string)`       | A list of users to exclude from monitoring.                                             |         | no       |
-| `enable_indexed_labels`      | `boolean`            | Whether to use Loki indexed labels for improved performance. Experimental feature.      | `false` | no       |
 | `enable_structured_metadata` | `boolean`            | Whether to use Loki structured metadata for improved performance. Experimental feature. | `false` | no       |
 
 [Data Source Name]: https://pkg.go.dev/github.com/lib/pq#hdr-URL_connection_strings-NewConfig

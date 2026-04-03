@@ -115,7 +115,6 @@ type QuerySamplesArguments struct {
 	Logger                   log.Logger
 	DisableQueryRedaction    bool
 	ExcludeCurrentUser       bool
-	EnableIndexedLabels      bool
 	EnableStructuredMetadata bool
 }
 
@@ -127,7 +126,6 @@ type QuerySamples struct {
 	entryHandler             loki.EntryHandler
 	disableQueryRedaction    bool
 	excludeCurrentUser       bool
-	enableIndexedLabels      bool
 	enableStructuredMetadata bool
 
 	logger  log.Logger
@@ -238,7 +236,6 @@ func NewQuerySamples(args QuerySamplesArguments) (*QuerySamples, error) {
 		entryHandler:             args.EntryHandler,
 		disableQueryRedaction:    args.DisableQueryRedaction,
 		excludeCurrentUser:       args.ExcludeCurrentUser,
-		enableIndexedLabels:      args.EnableIndexedLabels,
 		enableStructuredMetadata: args.EnableStructuredMetadata,
 		logger:                   log.With(args.Logger, "collector", QuerySamplesCollector),
 		running:                  &atomic.Bool{},
@@ -492,15 +489,15 @@ func (c *QuerySamples) emitAndDeleteSample(key SampleKey) {
 		ts,
 	)
 
-	if c.enableIndexedLabels || c.enableStructuredMetadata {
-		c.entryHandler.Chan() <- database_observability.BuildV2LokiEntry(
+	if c.enableStructuredMetadata {
+		c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
 			logging.LevelInfo,
 			OP_QUERY_SAMPLE_V2,
 			c.buildQuerySampleV2Labels(state, state.EndAt),
-			[]database_observability.Field{{Name: "datname", Value: state.LastRow.DatabaseName.String}},
-			[]database_observability.Field{{Name: "queryid", Value: fmt.Sprintf("%d", state.LastRow.QueryID.Int64)}},
-			c.enableIndexedLabels,
-			c.enableStructuredMetadata,
+			push.LabelsAdapter{
+				{Name: "datname", Value: state.LastRow.DatabaseName.String},
+				{Name: "queryid", Value: fmt.Sprintf("%d", state.LastRow.QueryID.Int64)},
+			},
 			ts,
 		)
 	}
@@ -517,30 +514,27 @@ func (c *QuerySamples) emitAndDeleteSample(key SampleKey) {
 			we.LastTimestamp.UnixNano(),
 		)
 
-		if c.enableIndexedLabels || c.enableStructuredMetadata {
+		if c.enableStructuredMetadata {
 			waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)
-			c.entryHandler.Chan() <- database_observability.BuildV2LokiEntry(
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
 				logging.LevelInfo,
 				OP_WAIT_EVENT_V2,
 				c.buildWaitEventLabelsV2(state, we),
-				[]database_observability.Field{{Name: "datname", Value: state.LastRow.DatabaseName.String}},
-				[]database_observability.Field{
+				push.LabelsAdapter{
+					{Name: "datname", Value: state.LastRow.DatabaseName.String},
 					{Name: "queryid", Value: fmt.Sprintf("%d", state.LastRow.QueryID.Int64)},
 					{Name: "wait_event_type", Value: we.WaitEventType},
 					{Name: "wait_event_name", Value: waitEventFullName},
 				},
-				c.enableIndexedLabels,
-				c.enableStructuredMetadata,
 				we.LastTimestamp.UnixNano(),
 			)
-		}
 
-		if c.enableStructuredMetadata {
 			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
 				logging.LevelInfo,
 				OP_WAIT_EVENT_V3,
-				c.buildWaitEventV3Labels(state, we),
+				c.buildWaitEventLabelsV2(state, we),
 				push.LabelsAdapter{
+					{Name: "datname", Value: state.LastRow.DatabaseName.String},
 					{Name: "wait_event_type", Value: classifyPostgresWaitEventType(we.WaitEventType)},
 					{Name: "queryid", Value: fmt.Sprintf("%d", state.LastRow.QueryID.Int64)},
 				},
@@ -729,29 +723,6 @@ func classifyPostgresWaitEventType(rawType string) string {
 	}
 }
 
-func (c *QuerySamples) buildWaitEventV3Labels(state *SampleState, we WaitEventOccurrence) string {
-	waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)
-	leaderPID := ""
-	if state.LastRow.LeaderPID.Valid {
-		leaderPID = fmt.Sprintf(`%d`, state.LastRow.LeaderPID.Int64)
-	}
-	return fmt.Sprintf(
-		`datname="%s" pid="%d" leader_pid="%s" user="%s" backend_type="%s" state="%s" xid="%d" xmin="%d" wait_time="%s" wait_event="%s" wait_event_name="%s" blocked_by_pids="%v" queryid="%d"`,
-		state.LastRow.DatabaseName.String,
-		state.LastRow.PID,
-		leaderPID,
-		state.LastRow.Username.String,
-		state.LastRow.BackendType.String,
-		we.LastState,
-		state.LastRow.BackendXID.Int64,
-		state.LastRow.BackendXmin.Int64,
-		we.LastWaitTime,
-		we.WaitEvent,
-		waitEventFullName,
-		we.BlockedByPIDs,
-		state.LastRow.QueryID.Int64,
-	)
-}
 
 func (c *QuerySamples) buildWaitEventV4Labels(state *SampleState, we WaitEventOccurrence) string {
 	waitEventFullName := fmt.Sprintf("%s:%s", we.WaitEventType, we.WaitEvent)

@@ -1010,35 +1010,29 @@ func TestQueryDetails_LogFormatFlags(t *testing.T) {
 
 	testcases := []struct {
 		name                     string
-		enableIndexedLabels      bool
 		enableStructuredMetadata bool
-		assocV2Labels            model.LabelSet
-		assocV2Line              string
-		assocV2SM                push.LabelsAdapter
+		// SM=true:  query_association (V1) + query_association_v2 + query_parsed_table_name = 3
+		// SM=false: query_association (V1) + query_parsed_table_name = 2
+		expectedCount int
+		assocV2Labels model.LabelSet
+		assocV2Line   string
+		assocV2SM     push.LabelsAdapter
 	}{
 		{
-			name:                     "both indexed labels and structured metadata enabled",
-			enableIndexedLabels:      true,
+			name:                     "structured metadata enabled",
 			enableStructuredMetadata: true,
-			assocV2Labels:            model.LabelSet{"op": OP_QUERY_ASSOCIATION_V2, "datname": "some_database"},
-			assocV2Line:              `level="info" querytext="SELECT * FROM some_table WHERE id = $1"`,
-			assocV2SM:                push.LabelsAdapter{{Name: "queryid", Value: "abc123"}},
-		},
-		{
-			name:                     "only indexed labels enabled",
-			enableIndexedLabels:      true,
-			enableStructuredMetadata: false,
-			assocV2Labels:            model.LabelSet{"op": OP_QUERY_ASSOCIATION_V2, "datname": "some_database"},
-			assocV2Line:              `level="info" querytext="SELECT * FROM some_table WHERE id = $1" queryid="abc123"`,
-			assocV2SM:                nil,
-		},
-		{
-			name:                     "only structured metadata enabled",
-			enableIndexedLabels:      false,
-			enableStructuredMetadata: true,
+			expectedCount:            3,
 			assocV2Labels:            model.LabelSet{"op": OP_QUERY_ASSOCIATION_V2},
-			assocV2Line:              `level="info" datname="some_database" querytext="SELECT * FROM some_table WHERE id = $1"`,
-			assocV2SM:                push.LabelsAdapter{{Name: "queryid", Value: "abc123"}},
+			assocV2Line: `level="info" querytext="SELECT * FROM some_table WHERE id = $1"`,
+			assocV2SM: push.LabelsAdapter{
+				{Name: "datname", Value: "some_database"},
+				{Name: "queryid", Value: "abc123"},
+			},
+		},
+		{
+			name:                     "structured metadata disabled",
+			enableStructuredMetadata: false,
+			expectedCount:            2,
 		},
 	}
 
@@ -1058,7 +1052,6 @@ func TestQueryDetails_LogFormatFlags(t *testing.T) {
 				StatementsLimit:          100,
 				EntryHandler:             lokiClient,
 				Logger:                   log.NewLogfmtLogger(os.Stderr),
-				EnableIndexedLabels:      tc.enableIndexedLabels,
 				EnableStructuredMetadata: tc.enableStructuredMetadata,
 			})
 			require.NoError(t, err)
@@ -1078,9 +1071,8 @@ func TestQueryDetails_LogFormatFlags(t *testing.T) {
 			err = collector.Start(t.Context())
 			require.NoError(t, err)
 
-			// expect: query_association (V1) + query_association_v2 + query_parsed_table_name = 3
 			require.Eventually(t, func() bool {
-				return len(lokiClient.Received()) == 3
+				return len(lokiClient.Received()) == tc.expectedCount
 			}, 5*time.Second, 100*time.Millisecond)
 
 			collector.Stop()
@@ -1091,6 +1083,10 @@ func TestQueryDetails_LogFormatFlags(t *testing.T) {
 			}, 5*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, mock.ExpectationsWereMet())
+
+			if !tc.enableStructuredMetadata {
+				return
+			}
 
 			entries := lokiClient.Received()
 			// entries[0] = query_association (V1), entries[1] = query_association_v2, entries[2] = query_parsed_table_name

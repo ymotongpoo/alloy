@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/alloy/internal/component/database_observability/mysql/collector/parser"
 	"github.com/grafana/alloy/internal/runtime/logging"
 	"github.com/grafana/alloy/internal/runtime/logging/level"
+	"github.com/grafana/loki/pkg/push"
 )
 
 const (
@@ -43,7 +44,6 @@ type QueryDetailsArguments struct {
 	StatementsLimit          int
 	ExcludeSchemas           []string
 	EntryHandler             loki.EntryHandler
-	EnableIndexedLabels      bool
 	EnableStructuredMetadata bool
 
 	Logger log.Logger
@@ -55,7 +55,6 @@ type QueryDetails struct {
 	statementsLimit          int
 	excludeSchemas           []string
 	entryHandler             loki.EntryHandler
-	enableIndexedLabels      bool
 	enableStructuredMetadata bool
 	sqlParser                parser.Parser
 	normalizer               *sqllexer.Normalizer
@@ -74,7 +73,6 @@ func NewQueryDetails(args QueryDetailsArguments) (*QueryDetails, error) {
 		statementsLimit:          args.StatementsLimit,
 		excludeSchemas:           args.ExcludeSchemas,
 		entryHandler:             args.EntryHandler,
-		enableIndexedLabels:      args.EnableIndexedLabels,
 		enableStructuredMetadata: args.EnableStructuredMetadata,
 		sqlParser:                parser.NewTiDBSqlParser(),
 		normalizer:               sqllexer.NewNormalizer(sqllexer.WithCollectTables(true)),
@@ -162,15 +160,15 @@ func (c *QueryDetails) tablesFromEventsStatements(ctx context.Context) error {
 			fmt.Sprintf(`schema="%s" parseable="%t" digest="%s" digest_text="%s"`, schema, parserErr == nil, digest, digestText),
 		)
 
-		if c.enableIndexedLabels || c.enableStructuredMetadata {
-			c.entryHandler.Chan() <- database_observability.BuildV2LokiEntry(
+		if c.enableStructuredMetadata {
+			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
 				logging.LevelInfo,
 				OP_QUERY_ASSOCIATION_V2,
 				fmt.Sprintf(`parseable="%t" digest_text="%s"`, parserErr == nil, digestText),
-				[]database_observability.Field{{Name: "schema", Value: schema}},
-				[]database_observability.Field{{Name: "digest", Value: digest}},
-				c.enableIndexedLabels,
-				c.enableStructuredMetadata,
+				push.LabelsAdapter{
+					{Name: "schema", Value: schema},
+					{Name: "digest", Value: digest},
+				},
 				time.Now().UnixNano(),
 			)
 		}

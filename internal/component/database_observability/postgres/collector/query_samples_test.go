@@ -1298,35 +1298,29 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 
 	testcases := []struct {
 		name                     string
-		enableIndexedLabels      bool
 		enableStructuredMetadata bool
-		sampleV2Labels           model.LabelSet
-		sampleV2Line             string
-		sampleV2SM               push.LabelsAdapter
+		// SM=true:  query_sample (V1) + query_sample_v2 = 2
+		// SM=false: query_sample (V1) = 1
+		expectedCount  int
+		sampleV2Labels model.LabelSet
+		sampleV2Line   string
+		sampleV2SM     push.LabelsAdapter
 	}{
 		{
-			name:                     "both indexed labels and structured metadata enabled",
-			enableIndexedLabels:      true,
+			name:                     "structured metadata enabled",
 			enableStructuredMetadata: true,
-			sampleV2Labels:           model.LabelSet{"op": OP_QUERY_SAMPLE_V2, "datname": "testdb"},
-			sampleV2Line:             `level="info" pid="1000" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="active" xid="10" xmin="20" xact_time="2m0s" query_time="30s" cpu_time="10s" query="SELECT * FROM t"`,
-			sampleV2SM:               push.LabelsAdapter{{Name: "queryid", Value: "999"}},
-		},
-		{
-			name:                     "only indexed labels enabled",
-			enableIndexedLabels:      true,
-			enableStructuredMetadata: false,
-			sampleV2Labels:           model.LabelSet{"op": OP_QUERY_SAMPLE_V2, "datname": "testdb"},
-			sampleV2Line:             `level="info" pid="1000" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="active" xid="10" xmin="20" xact_time="2m0s" query_time="30s" cpu_time="10s" query="SELECT * FROM t" queryid="999"`,
-			sampleV2SM:               nil,
-		},
-		{
-			name:                     "only structured metadata enabled",
-			enableIndexedLabels:      false,
-			enableStructuredMetadata: true,
+			expectedCount:            2,
 			sampleV2Labels:           model.LabelSet{"op": OP_QUERY_SAMPLE_V2},
-			sampleV2Line:             `level="info" datname="testdb" pid="1000" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="active" xid="10" xmin="20" xact_time="2m0s" query_time="30s" cpu_time="10s" query="SELECT * FROM t"`,
-			sampleV2SM:               push.LabelsAdapter{{Name: "queryid", Value: "999"}},
+			sampleV2Line: `level="info" pid="1000" leader_pid="" user="testuser" app="testapp" client="127.0.0.1:5432" backend_type="client backend" state="active" xid="10" xmin="20" xact_time="2m0s" query_time="30s" cpu_time="10s" query="SELECT * FROM t"`,
+			sampleV2SM: push.LabelsAdapter{
+				{Name: "datname", Value: "testdb"},
+				{Name: "queryid", Value: "999"},
+			},
+		},
+		{
+			name:                     "structured metadata disabled",
+			enableStructuredMetadata: false,
+			expectedCount:            1,
 		},
 	}
 
@@ -1348,7 +1342,6 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 				Logger:                   log.NewNopLogger(),
 				DisableQueryRedaction:    true,
 				ExcludeCurrentUser:       true,
-				EnableIndexedLabels:      tc.enableIndexedLabels,
 				EnableStructuredMetadata: tc.enableStructuredMetadata,
 			})
 			require.NoError(t, err)
@@ -1369,17 +1362,9 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 
 			require.NoError(t, sampleCollector.Start(t.Context()))
 
-			// expect: query_sample (V1) + query_sample_v2 = 2
 			require.Eventually(t, func() bool {
-				return len(lokiClient.Received()) == 2
+				return len(lokiClient.Received()) == tc.expectedCount
 			}, 5*time.Second, 100*time.Millisecond)
-
-			entries := lokiClient.Received()
-			require.Len(t, entries, 2)
-			// entries[0] = query_sample (V1), entries[1] = query_sample_v2
-			require.Equal(t, tc.sampleV2Labels, entries[1].Labels)
-			require.Equal(t, tc.sampleV2Line, entries[1].Line)
-			require.Equal(t, tc.sampleV2SM, entries[1].StructuredMetadata)
 
 			sampleCollector.Stop()
 			require.Eventually(t, func() bool {
@@ -1389,6 +1374,17 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			require.Eventually(t, func() bool {
 				return mock.ExpectationsWereMet() == nil
 			}, 5*time.Second, 100*time.Millisecond)
+
+			if !tc.enableStructuredMetadata {
+				return
+			}
+
+			entries := lokiClient.Received()
+			require.Len(t, entries, 2)
+			// entries[0] = query_sample (V1), entries[1] = query_sample_v2
+			require.Equal(t, tc.sampleV2Labels, entries[1].Labels)
+			require.Equal(t, tc.sampleV2Line, entries[1].Line)
+			require.Equal(t, tc.sampleV2SM, entries[1].StructuredMetadata)
 		})
 	}
 }
