@@ -519,12 +519,29 @@ func (c *QuerySamples) fetchQuerySamples(ctx context.Context) error {
 				int64(millisecondsToNanoseconds(row.TimestampMilliseconds)),
 			)
 
+			waitV3LogMessage := fmt.Sprintf(
+					`user="%s" client_host="%s" thread_id="%s" event_id="%s" wait_event_id="%s" wait_end_event_id="%s" wait_event_name="%s" wait_object_name="%s" wait_object_type="%s" wait_time="%fms"`,
+					row.User.String,
+					row.Host.String,
+					row.ThreadID.String,
+					row.StatementEventID.String,
+					row.WaitEventID.String,
+					row.WaitEndEventID.String,
+					row.WaitEventName.String,
+					row.WaitObjectName.String,
+					row.WaitObjectType.String,
+					waitTime,
+				)
+				if c.disableQueryRedaction && row.SQLText.Valid {
+					waitV3LogMessage += fmt.Sprintf(` sql_text="%s"`, row.SQLText.String)
+				}
+
 			c.entryHandler.Chan() <- database_observability.BuildLokiEntryWithStructuredMetadataAndTimestamp(
 				logging.LevelInfo,
 				OP_WAIT_EVENT_V3,
 				waitBaseLogMessage,
 				push.LabelsAdapter{
-					{Name: "schema", Value: row.Schema.String},
+					{Name: "schema", Value: row.Schema.String},					
 					{Name: "wait_event_type", Value: classifyMySQLWaitEventType(row.WaitEventName.String)},
 					{Name: "digest", Value: row.Digest.String},
 				},

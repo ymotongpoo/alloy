@@ -3040,11 +3040,10 @@ func TestQuerySamples_LogFormatFlags(t *testing.T) {
 			assert.ElementsMatch(t, tc.waitV2SM, entries[3].StructuredMetadata)
 
 			assert.Equal(t, model.LabelSet{"op": OP_WAIT_EVENT_V3}, entries[4].Labels)
-			assert.Equal(t, tc.waitV2Line, entries[4].Line)
+			assert.Equal(t, `level="info" user="some_user" client_host="some_host" thread_id="890" event_id="123" wait_event_id="124" wait_end_event_id="124" wait_event_name="wait/io/file/innodb/innodb_data_file" wait_object_name="wait_object_name" wait_object_type="wait_object_type" wait_time="0.100000ms"`, entries[4].Line)
 			assert.ElementsMatch(t, push.LabelsAdapter{
-				{Name: "schema", Value: "some_schema"},
 				{Name: "wait_event_type", Value: "IO Wait"},
-				{Name: "digest", Value: "some_digest"},
+				{Name: "queryid", Value: "some_digest"},
 			}, entries[4].StructuredMetadata)
 		})
 	}
