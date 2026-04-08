@@ -132,6 +132,13 @@ ifeq ($(filter gore2regex,$(GO_TAGS)),)
 override GO_TAGS := $(strip gore2regex $(GO_TAGS))
 endif
 
+# oracle-db-appdev-monitoring/collector gates connect() behind //go:build goora or godror.
+# Default godror matches historical Agent/static behavior (Oracle Instant Client via ODPI-C).
+# TODO: Use go-ora instead. It is pure-Go and has no external dependencies.
+ifeq ($(filter goora godror,$(GO_TAGS)),)
+override GO_TAGS := $(strip godror $(GO_TAGS))
+endif
+
 GO_ENV := GOEXPERIMENT=$(GOEXPERIMENT) GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) CGO_ENABLED=$(CGO_ENABLED)
 
 VERSION      ?= $(shell bash ./tools/image-tag)

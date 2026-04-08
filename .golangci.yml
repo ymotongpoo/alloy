@@ -61,6 +61,9 @@ linters:
       - component/otelcol/receiver/prometheus/internal # Copied with attribution from OTel Collector
       - internal/cmd/integration-tests # Exclude all integration tests
       - internal/component/loki/source/file/internal/tail/ # The tail code was copied from https://github.com/grafana/tail. It can be cleaned of linting issues later.
+run:
+  build-tags:
+    - godror
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
