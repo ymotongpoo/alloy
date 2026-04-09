@@ -1006,6 +1006,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/splunk v0.147.0
 	github.com/spf13/viper v1.21.0
 	github.com/zricethezav/gitleaks/v8 v8.30.0
+	sigs.k8s.io/e2e-framework v0.6.0
 )
 
 require (
@@ -1089,7 +1090,6 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.147.0 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	sigs.k8s.io/e2e-framework v0.6.0 // indirect
 )
 
 // Add exclude directives so Go doesn't pick old incompatible k8s.io/client-go
