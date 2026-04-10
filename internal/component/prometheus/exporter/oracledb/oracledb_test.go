@@ -53,6 +53,9 @@ func TestAlloyUnmarshalDatabaseBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := Arguments{
+		MaxIdleConns: DefaultArguments.MaxIdleConns,
+		MaxOpenConns: DefaultArguments.MaxOpenConns,
+		QueryTimeout: DefaultArguments.QueryTimeout,
 		Databases: DatabaseTargets{
 			{
 				Name:             "db1",
