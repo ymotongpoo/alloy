@@ -138,6 +138,13 @@ ifeq ($(filter goora godror,$(GO_TAGS)),)
 override GO_TAGS := $(strip godror $(GO_TAGS))
 endif
 
+# GO_TAGS is space-separatedm whereas GOFLAGS -tags= needs commas
+# For example, GO_TAGS="godror gore2regex" becomes GOFLAGS -tags="godror,gore2regex".
+empty :=
+space := $(empty) $(empty)
+comma := ,
+GO_TAGS_COMMA := $(subst $(space),$(comma),$(GO_TAGS))
+
 GO_ENV := GOEXPERIMENT=$(GOEXPERIMENT) GOOS=$(GOOS) GOARCH=$(GOARCH) GOARM=$(GOARM) CGO_ENABLED=$(CGO_ENABLED)
 
 VERSION      ?= $(shell bash ./tools/image-tag)
@@ -178,11 +185,11 @@ endif
 .PHONY: lint
 lint: alloylint
 	find . -name go.mod | xargs dirname | xargs -I __dir__ $(GOLANGCI_LINT_BINARY) run -v --timeout=10m
-	GOFLAGS="-tags=$(GO_TAGS)" $(ALLOYLINT_BINARY) ./...
+	GOFLAGS="-tags=$(GO_TAGS_COMMA)" $(ALLOYLINT_BINARY) ./...
 
 .PHONY: run-alloylint
 run-alloylint: alloylint
-	GOFLAGS="-tags=$(GO_TAGS)" $(ALLOYLINT_BINARY) ./...
+	GOFLAGS="-tags=$(GO_TAGS_COMMA)" $(ALLOYLINT_BINARY) ./...
 
 .PHONY: test
 # We have to run test twice: once for all packages with -race and then once
