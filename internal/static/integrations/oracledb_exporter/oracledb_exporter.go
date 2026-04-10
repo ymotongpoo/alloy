@@ -17,6 +17,7 @@ import (
 	integrations_v2 "github.com/grafana/alloy/internal/static/integrations/v2"
 	"github.com/grafana/alloy/internal/static/integrations/v2/metricsutils"
 	config_util "github.com/prometheus/common/config"
+	"k8s.io/utils/ptr"
 )
 
 const oracleScheme = "oracle://"
@@ -106,10 +107,6 @@ func init() {
 	integrations_v2.RegisterLegacy(&Config{}, integrations_v2.TypeMultiplex, metricsutils.NewNamedShim("oracledb"))
 }
 
-func intPtr(i int) *int {
-	return &i
-}
-
 // NormalizeConnectionString strips an optional oracle:// scheme and optional
 // embedded credentials, returning host-style URL, username, and password.
 // Example:
@@ -190,9 +187,9 @@ func New(logger log.Logger, c *Config) (integrations.Integration, error) {
 			Username: t.user,
 			Password: t.pass,
 			ConnectConfig: oe.ConnectConfig{
-				MaxIdleConns: intPtr(c.MaxIdleConns),
-				MaxOpenConns: intPtr(c.MaxOpenConns),
-				QueryTimeout: intPtr(c.QueryTimeout),
+				MaxIdleConns: ptr.To(c.MaxIdleConns),
+				MaxOpenConns: ptr.To(c.MaxOpenConns),
+				QueryTimeout: ptr.To(c.QueryTimeout),
 			},
 			Labels: t.labels,
 		}

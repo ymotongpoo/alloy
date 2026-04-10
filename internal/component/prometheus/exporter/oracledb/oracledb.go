@@ -63,14 +63,14 @@ type DatabaseTargets []DatabaseTarget
 
 // Arguments controls the oracledb exporter.
 type Arguments struct {
-	ConnectionString alloytypes.Secret `alloy:"connection_string,attr,optional"`
+	ConnectionString alloytypes.Secret `alloy:"connection_string,attr,optional"` // Deprecated: Use Databases instead.
 	MaxIdleConns     int               `alloy:"max_idle_conns,attr,optional"`
 	MaxOpenConns     int               `alloy:"max_open_conns,attr,optional"`
 	QueryTimeout     int               `alloy:"query_timeout,attr,optional"`
 	DefaultMetrics   string            `alloy:"default_metrics,attr,optional"`
 	CustomMetrics    []string          `alloy:"custom_metrics,attr,optional"`
-	Username         string            `alloy:"username,attr,optional"`
-	Password         alloytypes.Secret `alloy:"password,attr,optional"`
+	Username         string            `alloy:"username,attr,optional"` // Deprecated: Use Databases instead.
+	Password         alloytypes.Secret `alloy:"password,attr,optional"` // Deprecated: Use Databases instead.
 	Databases        DatabaseTargets   `alloy:"database,block,optional"`
 }
 
