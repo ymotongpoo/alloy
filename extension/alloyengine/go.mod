@@ -1,6 +1,6 @@
 module github.com/grafana/alloy/extension/alloyengine
 
-go 1.25.9
+go 1.26.1
 
 replace github.com/grafana/alloy => ../..
 
@@ -1100,7 +1100,7 @@ replace go.opentelemetry.io/ebpf-profiler => github.com/grafana/opentelemetry-eb
 replace github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235
 
 // Do not remove until bug in walqueue backwards compatibility is resolved: https://github.com/deneonet/benc/issues/13
-replace github.com/deneonet/benc => github.com/deneonet/benc v1.1.7
+replace github.com/deneonet/benc => github.com/deneonet/benc v1.1.8
 
 // Pin runc to v1.2.8 for compatibility with cadvisor requiring libcontainer/cgroups packages
 replace github.com/opencontainers/runc => github.com/opencontainers/runc v1.2.8
@@ -1118,6 +1118,6 @@ replace github.com/prometheus/prometheus => github.com/grafana/prometheus v1.8.2
 replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 
 // Work around DataDog split module ambiguity for pkg/util/system/socket by pinning util/system to the same rc stream used by current datadogexporter deps. Remove when https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/45955 (and follow-up releases) fully align DataDog modules.
-replace github.com/DataDog/datadog-agent/pkg/util/system => github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-rc.2
+replace github.com/DataDog/datadog-agent/pkg/util/system => github.com/DataDog/datadog-agent/pkg/util/system v0.77.2
 
 // END GENERATED REPLACES
