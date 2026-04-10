@@ -132,9 +132,8 @@ ifeq ($(filter gore2regex,$(GO_TAGS)),)
 override GO_TAGS := $(strip gore2regex $(GO_TAGS))
 endif
 
-# oracle-db-appdev-monitoring/collector gates connect() behind //go:build goora or godror.
-# Default godror matches historical Agent/static behavior (Oracle Instant Client via ODPI-C).
-# TODO: Use go-ora instead. It is pure-Go and has no external dependencies.
+# TODO: Remove the "godror" tag when a version of oracle-db-appdev-monitoring is released with this change:
+# https://github.com/oracle/oracle-db-appdev-monitoring/pull/496
 ifeq ($(filter goora godror,$(GO_TAGS)),)
 override GO_TAGS := $(strip godror $(GO_TAGS))
 endif
