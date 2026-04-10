@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.16.0](https://github.com/grafana/alloy/compare/v1.15.0...v1.16.0) (2026-04-10)
+
+
+### Features 🌟
+
+* Add otelcol.auth.google client auth provider ([#5526](https://github.com/grafana/alloy/issues/5526)) ([da99a66](https://github.com/grafana/alloy/commit/da99a66dde2dcf931ee1a07a9a0c401a56d4f510))
+* **database_observability:** Add support for GCP Cloud SQL metadata ([#5875](https://github.com/grafana/alloy/issues/5875)) ([5d23245](https://github.com/grafana/alloy/commit/5d232459ad9d49d4ca66ad30f47ef503d3ec8718))
+* **database_observability:** Make targets optional ([#5924](https://github.com/grafana/alloy/issues/5924)) ([54664b2](https://github.com/grafana/alloy/commit/54664b207666c7f1e080d5b0f0fd297e5709347e))
+* **faro.receiver:** Add sourcemap fetching from remote locations ([#4614](https://github.com/grafana/alloy/issues/4614)) ([b6cb5da](https://github.com/grafana/alloy/commit/b6cb5dac66addea4e43e08c864544e1d069558a6))
+* **helm:** Allow configuring image pull policy for config reloader ([#5923](https://github.com/grafana/alloy/issues/5923)) ([991539b](https://github.com/grafana/alloy/commit/991539bfc3c7bc0f32377f6eb45c445069a955bf))
+* **loki.secretfilter:** Add `label_timed_out` option to mark timed-out log lines ([#5898](https://github.com/grafana/alloy/issues/5898)) ([2ad8834](https://github.com/grafana/alloy/commit/2ad8834551402bfd49cc33e659c4ae1308d09b05))
+* **loki.secretfilter:** Add `secrets_redacted_by_category_total` metric combining rule and origin ([#5855](https://github.com/grafana/alloy/issues/5855)) ([053a2f7](https://github.com/grafana/alloy/commit/053a2f736b754fa67e2df718c1efe81e12dd973c))
+* **loki.secretfilter:** Change secretfilter to use go-re2 regex library instead of stdlib ([#5909](https://github.com/grafana/alloy/issues/5909)) ([c16a660](https://github.com/grafana/alloy/commit/c16a660b912a948badc4e69de4eeab6edc1b3364))
+* **loki.secretfilter:** Remove redundant `secrets_redacted_by_rule_total` and `secrets_redacted_by_origin metrics` ([#5970](https://github.com/grafana/alloy/issues/5970)) ([b16decb](https://github.com/grafana/alloy/commit/b16decb5ba4c6efe0c4aaeb0340c3e315c38bef7))
+* **prometheus.exporter.cloudwatch:** Upgrade YACE and drop aws-sdk-go v1 support ([#5936](https://github.com/grafana/alloy/issues/5936)) ([f1c036d](https://github.com/grafana/alloy/commit/f1c036da4445a839a3f051bd187eb53fc7dae868))
+* **prometheus.exporter.mysql:** Update to mysqld_exporter 0.19.0 ([#5836](https://github.com/grafana/alloy/issues/5836)) ([4f49b57](https://github.com/grafana/alloy/commit/4f49b57829bcbb8f5ecd18daa8b58127743562ba))
+* **prometheus.remote_write:** Sync WAL with upstream Prometheus ([#5907](https://github.com/grafana/alloy/issues/5907)) ([e74a91b](https://github.com/grafana/alloy/commit/e74a91b346b5ec4ee0d93b6a82edb9921f6e26e6))
+* **pyroscope:** Add support for extra async-profiler CLI arguments ([#5472](https://github.com/grafana/alloy/issues/5472)) ([9251e33](https://github.com/grafana/alloy/commit/9251e33515e953074722c23651cd4bc8f80861e0))
+* **pyroscope:** Replace Parca gRPC debuginfo upload with Pyroscope Connect API ([#5891](https://github.com/grafana/alloy/issues/5891)) ([e7ea34a](https://github.com/grafana/alloy/commit/e7ea34adb71870b712d3a0d76fba71a5a56aebee))
+
+
+### Bug Fixes 🐛
+
+* Change service stop command from 'sc' to 'net' ([#5906](https://github.com/grafana/alloy/issues/5906)) ([450973d](https://github.com/grafana/alloy/commit/450973d22b8174ed697f96b0bdef2ba104f098e6))
+* **database_observability.mysql:** Refactor explain plan loop batch size ([#5894](https://github.com/grafana/alloy/issues/5894)) ([f0fcd6b](https://github.com/grafana/alloy/commit/f0fcd6ba364e04df3712c2408d81b6986e8f0840))
+* **database_observability:** Ensure connection_info_monitor goroutine exits on Stop ([#5874](https://github.com/grafana/alloy/issues/5874)) ([1e3334b](https://github.com/grafana/alloy/commit/1e3334bca541fe3e77521f3203c95a0b4b4a26ff))
+* **deps:** Update module github.com/aws/aws-sdk-go-v2/service/s3 to v1.97.3 [SECURITY] ([#6004](https://github.com/grafana/alloy/issues/6004)) ([38f4346](https://github.com/grafana/alloy/commit/38f43467eaced756ee6556767426a36d2624b1de))
+* **deps:** Update module github.com/go-git/go-git/v5 to v5.17.1 [SECURITY] ([#5934](https://github.com/grafana/alloy/issues/5934)) ([a5154af](https://github.com/grafana/alloy/commit/a5154af3dfc1ed58af087b34778fdbd135a51397))
+* **deps:** Update module github.com/nwaples/rardecode/v2 to v2.2.0 [SECURITY] ([b44d51a](https://github.com/grafana/alloy/commit/b44d51ae1d282ee999498867e4590f39cf19c0ff))
+* **deps:** Update some minor go dep versions ([#5896](https://github.com/grafana/alloy/issues/5896)) ([4ddd0ed](https://github.com/grafana/alloy/commit/4ddd0ed7b672515ed2f5b5a502fdce5630617a69))
+* **go:** Update alloy builder image to Go 1.25.9 ([#6012](https://github.com/grafana/alloy/issues/6012)) ([d2ae8b8](https://github.com/grafana/alloy/commit/d2ae8b82e5d751a9c6a6055af01aed0ea2339b2a))
+* **go:** Upgrade to Go 1.25.9 ([#6019](https://github.com/grafana/alloy/issues/6019)) ([d777ed1](https://github.com/grafana/alloy/commit/d777ed157c4d8df15c4298dbc7f7b6ab05a94975))
+* **Helm:** RBAC template handles empty rule arrays ([#4860](https://github.com/grafana/alloy/issues/4860)) ([c9430e9](https://github.com/grafana/alloy/commit/c9430e9208b4b4390afbae15efe4314388518d12))
+* **loki.process:** Prevent stage.structured_metadata from adding the same metadata several times ([#5965](https://github.com/grafana/alloy/issues/5965)) ([0ec8a26](https://github.com/grafana/alloy/commit/0ec8a26665b243c901925a139b3718c0825592dc))
+* **loki.process:** Wrap template in a custom type and move validation to syntax.Validator ([#5910](https://github.com/grafana/alloy/issues/5910)) ([700dd7d](https://github.com/grafana/alloy/commit/700dd7d0f164f96293bbbb961f18587a2cc33a64))
+* **prometheus.exporter.postgres:** Close DB connections on update ([#6021](https://github.com/grafana/alloy/issues/6021)) ([8da97cf](https://github.com/grafana/alloy/commit/8da97cf6732861f08c9047867f692dc5c7be8a8e))
+* **pyroscope.ebpf:** Fix deadlock on LRU eviction in irsymcache ([#5911](https://github.com/grafana/alloy/issues/5911)) ([03ca563](https://github.com/grafana/alloy/commit/03ca563b654eda057a9bcc70f18141ca13ba56eb))
+* **pyroscope.ebpf:** Move Pyroscope ebpf metrics registration after component error handling ([#5540](https://github.com/grafana/alloy/issues/5540)) ([a3c57c0](https://github.com/grafana/alloy/commit/a3c57c0e5f6df99f21150c72af54db9177904c0b))
+* **pyroscope:** Set user agent on debuginfo connect-go client ([#6022](https://github.com/grafana/alloy/issues/6022)) ([38ad1ef](https://github.com/grafana/alloy/commit/38ad1ef1823efd08836d681b79e4c1e971c6584b))
+* **ui:** Large arguments are downloaded as files instead of rendered ([#5268](https://github.com/grafana/alloy/issues/5268)) ([26c67b3](https://github.com/grafana/alloy/commit/26c67b33ef830ce4aafa8fec46749a1caaa873c3))
+* **windows-installer:** Increase service restart on failure delays ([#5969](https://github.com/grafana/alloy/issues/5969)) ([add15b1](https://github.com/grafana/alloy/commit/add15b1aa026658d96de74ca6281c45027d09933))
+
 ## [1.15.0](https://github.com/grafana/alloy/compare/v1.14.0...v1.15.0) (2026-03-26)
 
 
